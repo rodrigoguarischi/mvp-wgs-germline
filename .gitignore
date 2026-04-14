@@ -1,0 +1,17 @@
+# Legacy code kept for reference — not part of the production pipeline
+legacy/
+
+# Python virtual environment
+py_env/
+
+# DRAGEN license credentials — never commit this file
+# The production copy lives in GCS at gs://<bucket>/dragen_credentials.txt
+dragen_credentials.txt
+
+# macOS metadata
+.DS_Store
+
+# Nextflow runtime directories
+.nextflow/
+.nextflow.log*
+work/
