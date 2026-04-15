@@ -79,8 +79,13 @@ nextflow run main.nf --samplesheet my_samples.csv --dragen_version 4.4.9
 # Reduce concurrency during a quota-constrained run
 nextflow run main.nf --samplesheet my_samples.csv --queue_size 100
 
-# Use a different machine type
-nextflow run main.nf --samplesheet my_samples.csv --machine_type n2-standard-96
+# Switch machine type — 5 options validated by Illumina (GCP-only costs, ~35x WGS):
+# n2d-standard-96  2h51  $3.19/sample Spot   $10.03/sample Standard
+# c3d-standard-60  3h15  $2.63/sample Spot   $9.75/sample  Standard
+# c3d-standard-90  2h13  $2.39/sample Spot   $9.65/sample  Standard  ← default
+# c4d-standard-64  2h29  $3.97/sample Spot   $8.55/sample  Standard
+# c4d-standard-96  1h44  $3.78/sample Spot   $8.56/sample  Standard  ← fastest
+nextflow run main.nf --samplesheet my_samples.csv --machine_type c4d-standard-96
 ```
 
 ### Monitor a running pipeline

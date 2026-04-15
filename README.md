@@ -4,7 +4,7 @@ A production-ready Nextflow pipeline for running [Illumina DRAGEN](https://www.i
 
 DRAGEN performs alignment, variant calling (SNV/INDEL), copy number variant (CNV) detection, structural variant (SV) detection, HLA typing, repeat genotyping, pharmacogenomics (PGx), and multi-region joint detection (MRJD) — all in a single pass per sample.
 
-This pipeline was validated on a 16-sample pilot at **~$2/sample** on GCP Spot instances and is designed to scale to **200,000+ samples**.
+This pipeline was validated in a **18-sample pilot run on December 19, 2025**, achieving **$1.83/sample (GCP-only costs)** on Spot instances using `c3d-standard-90`, and is designed to scale to **200,000+ samples**.
 
 ---
 
@@ -334,16 +334,58 @@ For each sample, the pipeline writes to `gs://<bucket>/output_files/<sample_id>/
 
 ## Spot Instance Strategy & Cost
 
-The pipeline was validated at **~$2/sample** using Spot VMs (`c3d-standard-90`, us-west1).
+### Pilot results (December 19, 2025 — 18 samples, us-west1)
+
+The pilot ran 14 jobs in parallel on `c3d-standard-90` Spot instances. Two samples with >140x coverage were included intentionally to stress-test VM configuration (these are the maximum-coverage outliers found in the 200k dataset). They were excluded from the cost and performance metrics below to avoid biasing the results.
+
+**Non-outlier sample performance (c3d-standard-90, Spot):**
+
+| Metric | Value |
+|--------|-------|
+| Average processing time | 2 h 01 min |
+| Min processing time | 1 h 44 min |
+| Max processing time | 7 h 25 min |
+| Average GCP cost | **$1.83 / sample** |
+| Min GCP cost | $1.57 / sample |
+| Max GCP cost | $6.64 / sample |
+
+> Costs reflect GCP compute only. Additional DRAGEN licensing costs apply separately.
+> The cost range reflects FASTQ size variation — see [Cost scales linearly with FASTQ size](#cost-scales-linearly-with-fastq-size) below.
+> Illumina's reference benchmarks are based on 35x WGS. MVP genomes average ~30x, which is why observed costs are slightly lower than the Illumina forecast.
+
+### Machine type comparison
+
+Illumina provided benchmarks for 5 supported machine types (run time from Illumina internal testing at ~35x WGS; costs calculated against VA's GCP hourly rates, GCP-only, no DRAGEN licensing):
+
+| VM size | Run time | Spot cost/sample | Standard cost/sample | Notes |
+|---------|----------|-----------------|---------------------|-------|
+| `n2d-standard-96` | 2 h 51 min | $3.19 | $10.03 | |
+| `c3d-standard-60` | 3 h 15 min | $2.63 | $9.75 | |
+| **`c3d-standard-90`** | **2 h 13 min** | **$2.39** | **$9.65** | **Default — cheapest Spot option** |
+| `c4d-standard-64` | 2 h 29 min | $3.97 | $8.55 | |
+| `c4d-standard-96` | 1 h 44 min | $3.78 | $8.56 | Fastest — choose if throughput matters more than cost |
+
+Spot instances are up to **4× cheaper** than Standard instances. `c3d-standard-90` is the default because it offers the lowest Spot cost per sample. If processing speed is prioritised over economy (e.g. urgent clinical turnaround), switch to `c4d-standard-96`:
+
+```bash
+nextflow run main.nf --samplesheet my_samples.csv --machine_type c4d-standard-96
+```
+
+### Cost scales linearly with FASTQ size
+
+Illumina confirmed — and the pilot validated (R² = 0.9953) — that both **processing time and GCP cost correlate linearly with FASTQ file size**. This means:
+- Cost and runtime estimates scale predictably for any coverage depth.
+- High-coverage outlier samples (>140x in the pilot) cost proportionally more and take longer; they are not anomalies.
+- For cost forecasting at 200k scale, the average FASTQ size of the cohort is the key input variable.
+
+### Spot preemption handling
 
 Spot VMs can be preempted by Google at any time. The pipeline handles this transparently:
 
-1. **Attempts 1–3** use Spot VMs. Each retry starts fresh — DRAGEN downloads its inputs again and runs from scratch. This is intentional: DRAGEN analysis cannot be checkpointed.
-2. **Attempt 4** uses a Standard (on-demand) VM, which guarantees capacity. Cost is approximately 3× higher than Spot for that one sample.
+1. **Attempts 1–3** use Spot VMs. Each retry starts fresh — DRAGEN downloads its inputs again and runs from scratch. DRAGEN analysis cannot be checkpointed.
+2. **Attempt 4** uses a Standard (on-demand) VM, guaranteeing capacity. Cost is ~4× higher than Spot for that sample.
 
-At scale, most samples will complete on the first or second Spot attempt. The Standard fallback exists to prevent any sample from getting stuck indefinitely due to sustained regional Spot scarcity.
-
-**Cost note on the Standard fallback:** If Spot scarcity is high in `us-west1`, many samples may fall through to the Standard attempt, increasing average cost significantly. Monitor the ratio of Spot vs Standard completions in Cloud Logging if cost deviates from the expected $2/sample baseline.
+At scale, most samples will complete on the first or second Spot attempt. The Standard fallback prevents any sample from getting stuck due to sustained regional Spot scarcity.
 
 ---
 
@@ -385,5 +427,5 @@ DRAGEN releases patch versions regularly (e.g. 4.4.4 → 4.4.6 → 4.4.7). To up
 **Nextflow reports "work directory not writable"**
 → Verify the head node service account has write access to `gs://<bucket>/nextflow-work`.
 
-**Cost significantly higher than $2/sample**
-→ Check what fraction of samples fell back to Standard instances (attempt 4) using Cloud Logging. High Spot preemption rates in the region drive cost up.
+**Cost significantly higher than $1.83/sample**
+→ Three likely causes: (1) a high fraction of samples fell back to Standard instances (attempt 4) — check Cloud Logging; (2) the cohort has higher average coverage than the ~30x pilot baseline — cost scales linearly with FASTQ size; (3) sustained Spot scarcity in `us-west1` — consider temporarily reducing `--queue_size` to reduce competition for capacity.
