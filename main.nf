@@ -37,7 +37,7 @@ workflow {
 
     log.info """
     ╔══════════════════════════════════════════════════════════╗
-    ║              DRAGEN GCP Pipeline — Nextflow              ║
+    ║          MVP WGS Germline Pipeline — Nextflow            ║
     ╚══════════════════════════════════════════════════════════╝
     Project ID    : ${params.project_id}
     Bucket        : gs://${params.bucket_name}
@@ -46,6 +46,7 @@ workflow {
     Machine type  : ${params.machine_type}
     Queue size    : ${params.queue_size}
     Samplesheet   : ${params.samplesheet}
+    Dry run       : ${params.dry_run}
     """.stripIndent()
 
     // Parse samplesheet — expects a CSV with a header column named 'sample_id'

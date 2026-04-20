@@ -29,9 +29,11 @@ WORKDIR /app
 # Set up PATH for DRAGEN (will be installed to /opt/dragen)
 ENV PATH="/opt/dragen/bin:${PATH}"
 
-# Copy the execution script
+# Copy execution scripts
 COPY run_dragen.sh /app/run_dragen.sh
-RUN chmod +x /app/run_dragen.sh
+COPY run_dragen_mock.sh /app/run_dragen_mock.sh
+RUN chmod +x /app/run_dragen.sh /app/run_dragen_mock.sh
 
 # No ENTRYPOINT — Nextflow injects its own command script into the container.
-# run_dragen.sh is invoked explicitly from modules/dragen/main.nf.
+# run_dragen.sh (or run_dragen_mock.sh for -profile test) is invoked explicitly
+# from modules/dragen/main.nf.

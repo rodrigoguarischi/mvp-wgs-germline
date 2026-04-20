@@ -1,4 +1,4 @@
-# DRAGEN MVP — Google Cloud Platform
+# MVP WGS Germline Pipeline — Google Cloud Platform
 
 A production-ready Nextflow pipeline for running [Illumina DRAGEN](https://www.illumina.com/products/by-type/informatics-products/dragen-secondary-analysis.html) whole-genome analysis at scale on Google Cloud Batch.
 
@@ -76,7 +76,10 @@ Every sample is guaranteed to complete unless DRAGEN itself reports an error.
 │       └── main.nf                # DRAGEN process definition
 ├── app/
 │   ├── Dockerfile                 # Container image definition
-│   └── run_dragen.sh              # Core pipeline logic (runs inside container)
+│   ├── run_dragen.sh              # Core pipeline logic (runs inside container)
+│   └── run_dragen_mock.sh         # Dry-run stub — no DRAGEN credits consumed
+├── scripts/
+│   └── generate_samplesheet.py   # Sample status tracker and samplesheet generator
 ├── assets/
 │   └── samplesheet_template.csv  # Sample sheet template
 └── legacy/                        # Pre-Nextflow code — kept for reference only
@@ -223,7 +226,7 @@ This checklist takes a new deployment from zero to first run:
 
 ## Running the Pipeline
 
-### Prepare a samplesheet
+### Option A — Prepare a samplesheet manually
 
 Create a CSV with one `sample_id` per row. The sample ID must match the folder name under `gs://<bucket>/input_genomes/`.
 
@@ -239,6 +242,35 @@ SAMPLE001
 SAMPLE002
 SAMPLE003
 ```
+
+### Option B — Generate samplesheet automatically (recommended for ongoing ingestion)
+
+`scripts/generate_samplesheet.py` scans GCS for new samples from the sequencing vendor and maintains a persistent status tracker at `gs://<bucket>/tracking/sample_tracker.csv`. All operators share the same tracker.
+
+**Install dependencies on the head node (once):**
+```bash
+pip install -r scripts/requirements.txt
+```
+
+**Check current status (report only, nothing is submitted):**
+```bash
+python scripts/generate_samplesheet.py
+```
+
+**Generate a samplesheet and mark samples as submitted:**
+```bash
+python scripts/generate_samplesheet.py --submit --out my_samples.csv
+```
+
+Sample lifecycle tracked by the script:
+
+| Status | Meaning |
+|--------|---------|
+| `pending` | Detected in `input_genomes/`, not yet submitted |
+| `submitted` | Included in a samplesheet via `--submit` |
+| `completed` | `file_manifest.md5` found in `output_files/<sample_id>/` |
+
+Run this script weekly (or on-demand) to capture new vendor deposits. The `-resume` flag in Nextflow provides an additional safety net — if a sample from a previous run appears in the new samplesheet, Nextflow skips it from cache.
 
 ### Launch the pipeline
 
@@ -270,6 +302,20 @@ nextflow run main.nf --samplesheet my_samples.csv \
   --bucket_name my-staging-bucket \
   --work_dir gs://my-staging-bucket/nextflow-work
 ```
+
+### Dry-run — validate GCP infrastructure without using DRAGEN credits
+
+The `test` profile submits **real Cloud Batch jobs** but replaces the DRAGEN step with a 20-second sleep and dummy output files. Use this to validate GCP authentication, spot VM provisioning, and GCS read/write permissions before a production run.
+
+```bash
+# Create a small test samplesheet
+printf 'sample_id\nTEST001\nTEST002\n' > test_samples.csv
+
+# Submit to GCP with mock DRAGEN (e2-standard-4, max 5 concurrent jobs)
+nextflow run main.nf --samplesheet test_samples.csv -profile test
+```
+
+Dummy output files (including `file_manifest.md5`) are written to `gs://<bucket>/output_files/<sample_id>/` so the run appears completed to `generate_samplesheet.py` as well.
 
 ---
 

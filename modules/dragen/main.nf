@@ -9,6 +9,10 @@
  * sample, manages the retry / spot-to-standard fallback strategy, and
  * controls how many jobs run concurrently (queueSize in gcp.config).
  *
+ * When params.dry_run = true (i.e. -profile test), run_dragen_mock.sh is
+ * called instead — it sleeps 20 s and writes dummy output files to GCS
+ * without downloading or executing the DRAGEN binary.
+ *
  * Input  : sample_id (string) — must match the folder name under
  *          gs://<bucket>/input_genomes/<sample_id>/
  *
@@ -33,7 +37,8 @@ process DRAGEN {
     // This drives the USE_SPOT env var for logging inside run_dragen.sh.
     // The actual spot/standard decision is enforced by Nextflow via the
     // `spot` directive in conf/gcp.config — not by the script itself.
-    def use_spot = task.attempt <= 3
+    def use_spot    = task.attempt <= 3
+    def run_script  = params.dry_run ? '/app/run_dragen_mock.sh' : '/app/run_dragen.sh'
     """
     export SAMPLE_ID="${sample_id}"
     export BUCKET_NAME="${params.bucket_name}"
@@ -44,6 +49,6 @@ process DRAGEN {
     export LICENSE_CREDENTIALS_PATH="${params.license_credentials_path}"
     export USE_SPOT="${use_spot}"
 
-    /app/run_dragen.sh
+    ${run_script}
     """
 }
