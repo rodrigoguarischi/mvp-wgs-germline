@@ -406,28 +406,30 @@ For each sample, the pipeline writes to `gs://<bucket>/output_files/<sample_id>/
 
 ### Pilot results (December 19, 2025 — 18 samples, us-west1)
 
-The pilot ran 14 jobs in parallel on `c3d-standard-90` Spot instances. Three samples with >140x coverage were included intentionally to stress-test VM configuration (these are the maximum-coverage outliers found in the 200k dataset). They were excluded from the cost and performance metrics below to avoid biasing the results.
+The pilot ran 14 jobs in parallel on `c3d-standard-90` Spot instances. Three samples with >140x coverage were included intentionally to stress-test VM configuration (these are the maximum-coverage outliers found in the 200k dataset). 
 
-**Non-outlier sample performance (c3d-standard-90, Spot):**
+Averages excluded non-outlier samples from the cost and performance metrics below to avoid biasing the results.
+
+**Sample performance (c3d-standard-90, Spot):**
 
 | Metric | Value |
 |--------|-------|
 | Average processing time | 2 h 01 min |
 | Min processing time | 1 h 44 min |
-| Max processing time | 7 h 25 min |
+| Max processing time (outlier sample) | 7 h 25 min |
 | Average GCP cost | **$1.83 / sample** |
 | Min GCP cost | $1.57 / sample |
-| Max GCP cost | $6.64 / sample |
+| Max GCP cost (outlier sample) | $6.64 / sample |
 
 > Costs reflect GCP compute only. Additional DRAGEN licensing costs apply separately.
 > The cost range reflects FASTQ size variation — see [Cost scales linearly with FASTQ size](#cost-scales-linearly-with-fastq-size) below.
-> Illumina's reference benchmarks are based on 35x WGS. MVP genomes average ~30x, which is why observed costs are slightly lower than the Illumina forecast.
+
 
 ![Processing time and GCP cost per sample](assets/pilot_processing_time_and_cost.png)
 
 ### Machine type comparison
 
-Illumina provided benchmarks for 5 supported machine types (run time from Illumina internal testing at ~35x WGS; costs calculated against the project's GCP hourly rates, GCP-only, no DRAGEN licensing):
+Illumina provided benchmarks for 5 supported machine types. Illumina's reference benchmarks are based on 35x WGS. MVP genomes average ~30x, which is why observed costs are slightly lower than the Illumina forecast.
 
 | VM size | Run time | Spot cost/sample | Standard cost/sample | Notes |
 |---------|----------|-----------------|---------------------|-------|
@@ -437,7 +439,9 @@ Illumina provided benchmarks for 5 supported machine types (run time from Illumi
 | `c4d-standard-64` | 2 h 29 min | $3.97 | $8.55 | |
 | `c4d-standard-96` | 1 h 44 min | $3.78 | $8.56 | Fastest — choose if throughput matters more than cost |
 
-Spot instances are up to **4× cheaper** than Standard instances. `c3d-standard-90` is the default because it offers the lowest Spot cost per sample. If processing speed is prioritised over economy (e.g. urgent clinical turnaround), switch to `c4d-standard-96`:
+> Costs calculated against the project's GCP hourly rates, GCP-only, no DRAGEN licensing:
+
+Spot instances are up to **4× cheaper** than Standard instances. `c3d-standard-90` is the default because it offers the lowest Spot cost per sample. If processing speed is prioritised over economy (e.g. urgent turnaround), switch to `c4d-standard-96`:
 
 ```bash
 nextflow run main.nf --samplesheet my_samples.csv --machine_type c4d-standard-96
