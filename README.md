@@ -431,13 +431,13 @@ The pilot ran 14 jobs in parallel on `c3d-standard-90` Spot instances. Three sam
 
 Illumina provided benchmarks for 5 supported machine types. Illumina's reference benchmarks are based on 35x WGS. MVP genomes average ~30x, which is why observed costs are slightly lower than the Illumina forecast.
 
-| <nobr>VM size</nobr> | <nobr>Runtime</nobr> | <nobr>Spot</nobr><br><nobr>Cost/sample</nobr> | <nobr>Standard</nobr><br><nobr>Cost/sample</nobr> | Notes |
+| VM&nbsp;size | Runtime | Spot<br>$/Sample | Standard<br>$/Sample | Notes |
 |---------|---------|--------------|-------------|-------|
-| <nobr>n2d-standard-96</nobr> | <nobr>2h 51min</nobr> | <nobr>$3.19</nobr> | <nobr>$10.03</nobr> | |
-| <nobr>c3d-standard-60</nobr> | <nobr>3h 15min</nobr> | <nobr>$2.63</nobr> | <nobr>$9.75</nobr> | |
-| <nobr>**c3d-standard-90**</nobr> | <nobr>**2h 13min**</nobr> | <nobr>**$2.39**</nobr> | <nobr>**$9.65**</nobr> | **Default — cheapest Spot option** |
-| <nobr>c4d-standard-64</nobr> | <nobr>2h 29min</nobr> | <nobr>$3.97</nobr> | <nobr>$8.55</nobr> | |
-| <nobr>c4d-standard-96</nobr> | <nobr>1h 44min</nobr> | <nobr>$3.78</nobr> | <nobr>$8.56</nobr> | Fastest — choose if throughput matters more than cost |
+| n2d&#8209;standard&#8209;96 | 2h&nbsp;51min | $3.19 | $10.03 | |
+| c3d&#8209;standard&#8209;60 | 3h&nbsp;15min | $2.63 | $9.75 | |
+| **c3d&#8209;standard&#8209;90** | **2h&nbsp;13min** | **$2.39** | **$9.65** | **Default — cheapest Spot option** |
+| c4d&#8209;standard&#8209;64 | 2h&nbsp;29min | $3.97 | $8.55 | |
+| c4d&#8209;standard&#8209;96 | 1h&nbsp;44min | $3.78 | $8.56 | Fastest — choose if throughput matters more than cost |
 
 > Costs calculated against the project's GCP hourly rates, GCP-only, no DRAGEN licensing:
 
