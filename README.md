@@ -413,14 +413,14 @@ The pilot ran 14 jobs in parallel on `c3d-standard-90` Spot instances. Three sam
 
 | Metric | Value |
 |--------|-------|
-| Average processing time | 2 h 01 min |
+| **Average processing time** (non-outlier samples) | **2 h 01 min** |
 | Min processing time | 1 h 44 min |
 | Max processing time (outlier sample) | 7 h 25 min |
-| Average GCP cost | **$1.83 / sample** |
+| **Average GCP cost** (non-outlier samples)| **$1.83 / sample** |
 | Min GCP cost | $1.57 / sample |
 | Max GCP cost (outlier sample) | $6.64 / sample |
 
-> * Averages excluded non-outlier samples from the cost and performance metrics below to avoid biasing the results.
+> * Averages excluded outlier samples from the cost and performance metrics to avoid biasing the results.
 > * Costs reflect GCP compute only. Additional DRAGEN licensing costs apply separately.
 > * The cost range reflects FASTQ size variation — see [Cost scales linearly with FASTQ size](#cost-scales-linearly-with-fastq-size) below.
 
