@@ -425,8 +425,6 @@ The pilot ran 14 jobs in parallel on `c3d-standard-90` Spot instances. Three sam
 
 ![Processing time and GCP cost per sample](assets/pilot_processing_time_and_cost.png)
 
-![GCP cost scales linearly with FASTQ size (R² = 0.9953)](assets/pilot_cost_by_fastq_size.png)
-
 ### Machine type comparison
 
 Illumina provided benchmarks for 5 supported machine types (run time from Illumina internal testing at ~35x WGS; costs calculated against the project's GCP hourly rates, GCP-only, no DRAGEN licensing):
@@ -451,6 +449,8 @@ Illumina confirmed — and the pilot validated (R² = 0.9953) — that both **pr
 - Cost and runtime estimates scale predictably for any coverage depth.
 - High-coverage outlier samples (>140x in the pilot) cost proportionally more and take longer; they are not anomalies.
 - For cost forecasting at 200k scale, the average FASTQ size of the cohort is the key input variable.
+
+<img src="assets/pilot_cost_by_fastq_size.png" width="70%" alt="GCP cost scales linearly with FASTQ size (R² = 0.9953)">
 
 ### Spot preemption handling
 
