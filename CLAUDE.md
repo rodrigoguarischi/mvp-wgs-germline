@@ -30,7 +30,12 @@ The Nextflow process runs on a persistent GCE VM. Before first use:
    gcloud config set project YOUR_PROJECT_ID
    ```
 
-3. **GCP quota increase — MANDATORY before large-scale runs:**  
+3. **Install Python dependencies for the samplesheet script:**
+   ```bash
+   pip install -r scripts/requirements.txt
+   ```
+
+4. **GCP quota increase — MANDATORY before large-scale runs:**  
    The default quota for concurrent `c3d-standard-90` VMs in `us-west1` is typically 50–200. This will be exhausted immediately at production scale (200k samples). A quota increase must be requested from Google and confirmed **before** starting any large batch. This team has direct Google contact — this step should be straightforward but cannot be skipped.
 
 ---
@@ -164,7 +169,9 @@ modules/dragen/main.nf  ── exports env vars ── calls /app/run_dragen.sh
 | `app/run_dragen_mock.sh` | Dry-run stub: sleeps 20 s and writes dummy output files. Used by `-profile test`. |
 | `app/Dockerfile` | Container image (Rocky Linux 8 + Python 3.11 + gcloud CLI). DRAGEN binary is downloaded at runtime, not baked in. |
 | `scripts/generate_samplesheet.py` | Scans GCS for new samples, maintains `tracking/sample_tracker.csv`, generates samplesheets. |
-| `assets/samplesheet_template.csv` | Sample sheet template. |
+| `scripts/requirements.txt` | Python dependency (`google-cloud-storage`) for `generate_samplesheet.py`. Install once on the head node. |
+| `assets/samplesheet_template.csv` | Samplesheet template. |
+| `secrets/dragen_credentials.txt` | Local reference copy of DRAGEN BYOL credentials (gitignored). The authoritative copy is in GCS at `gs://<bucket>/secrets/dragen_credentials.txt`. |
 
 ---
 
@@ -172,6 +179,8 @@ modules/dragen/main.nf  ── exports env vars ── calls /app/run_dragen.sh
 
 ```
 gs://<bucket>/
+├── secrets/
+│   └── dragen_credentials.txt  ← DRAGEN BYOL license file
 ├── tools/
 │   └── dragen-softwaremode-<version>.el8.x86_64.bin
 ├── reference/
@@ -201,7 +210,10 @@ gs://<bucket>/
 - **FASTQ naming**: Input files must follow `*_R1*` / `*_R2*` pattern — this is required by the pairing logic in `app/run_dragen.sh`.
 - **DRAGEN binary naming**: Must follow `dragen-softwaremode-<version>.el8.x86_64.bin`. Controlled by the `dragen_version` parameter.
 - **Container base**: Rocky Linux 8 (`rockylinux/rockylinux:8`) — required for DRAGEN binary compatibility.
+- **Credentials location**: The DRAGEN license file must be at `gs://<bucket>/secrets/dragen_credentials.txt`. This path is the default value of `params.license_credentials_path` in `nextflow.config`. The local `secrets/` directory is gitignored — never commit credentials.
 - **DRAGEN version upgrades**: Update `params.dragen_version` in `nextflow.config`, place the new binary under `gs://<bucket>/tools/`, rebuild and push the Docker image if any install-step behaviour changed. The analysis flags in `run_dragen.sh` are intentionally fixed and should only be changed after validating against a new DRAGEN release.
-- **License quota**: Track cumulative usage against `20251222_license_quota.json`. Past pilots have exhausted quotas; verify remaining capacity before large runs.
+- **License quota**: Track cumulative usage against `legacy/20251222_license_quota.json`. Past pilots have exhausted quotas; verify remaining capacity before large runs.
 - **`-resume` behaviour**: Nextflow caches completed tasks. If you change `run_dragen.sh` or `nextflow.config` parameters between runs, cached results for affected samples will be invalidated and those samples will re-run.
 - **Dry-run profile**: `-profile test` sets `params.dry_run = true`, `e2-standard-4`, 50 GB disk, queue size 5. Rebuild the Docker image before testing if `run_dragen_mock.sh` has changed.
+- **Shell safety**: Both `run_dragen.sh` and `run_dragen_mock.sh` use `set -euo pipefail`. Any unset environment variable or failed command will abort the job immediately, causing Nextflow to retry per the configured strategy.
+- **GCS tool consistency**: Both scripts use `gcloud storage` (the modern CLI). Do not introduce `gsutil` calls — the two tools have different flag syntax and `gsutil` is deprecated in favour of `gcloud storage`.

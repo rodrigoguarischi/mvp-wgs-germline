@@ -4,9 +4,9 @@ legacy/
 # Python virtual environment
 py_env/
 
-# DRAGEN license credentials — never commit this file
-# The production copy lives in GCS at gs://<bucket>/dragen_credentials.txt
-dragen_credentials.txt
+# DRAGEN license credentials — never commit this directory.
+# The production copy lives in GCS at gs://<bucket>/secrets/dragen_credentials.txt
+secrets/
 
 # macOS metadata
 .DS_Store

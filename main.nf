@@ -64,5 +64,5 @@ workflow {
 
     DRAGEN.out.completed
         .collect()
-        .map { samples -> log.info "Pipeline complete. ${samples.size()} sample(s) processed." }
+        .subscribe { samples -> log.info "Pipeline complete. ${samples.size()} sample(s) processed." }
 }

@@ -1,5 +1,5 @@
 #!/bin/bash
-set -e -o pipefail
+set -euo pipefail
 
 echo "Starting DRAGEN pipeline execution..."
 echo "Sample ID: ${SAMPLE_ID}"
@@ -7,36 +7,25 @@ echo "DRAGEN version: ${DRAGEN_VERSION}"
 echo "Bucket: gs://${BUCKET_NAME}"
 echo "Using spot instance: ${USE_SPOT}"
 
-# Configure gcloud to use the compute engine service account
-SERVICE_ACCOUNT=$(curl -s -H "Metadata-Flavor: Google" \
+# On Cloud Batch VMs (GCE), gcloud uses the instance's service account via ADC
+# automatically — no manual token handling is needed.
+SERVICE_ACCOUNT=$(curl -sf -H "Metadata-Flavor: Google" \
   http://metadata.google.internal/computeMetadata/v1/instance/service-accounts/default/email)
-echo "Service Account: ${SERVICE_ACCOUNT}"
 
-# Set gcloud account and activate service account authentication
-gcloud config set account ${SERVICE_ACCOUNT} > /dev/null 2>&1
-
-# Get access token and authenticate
-echo "Authenticating with service account..."
-ACCESS_TOKEN=$(curl -s -H "Metadata-Flavor: Google" \
-  http://metadata.google.internal/computeMetadata/v1/instance/service-accounts/default/token | \
-  python3 -c "import sys, json; print(json.load(sys.stdin)['access_token'])")
-
-if [ -z "$ACCESS_TOKEN" ]; then
-    echo "ERROR: Failed to obtain access token from metadata service"
+if [ -z "${SERVICE_ACCOUNT}" ]; then
+    echo "ERROR: Failed to retrieve service account from GCE metadata service"
     exit 1
 fi
+echo "Service account: ${SERVICE_ACCOUNT}"
 
-# Use the token for gcloud authentication
-echo "$ACCESS_TOKEN" | gcloud auth application-default print-access-token > /dev/null 2>&1
-
-# Verify authentication works
+# Verify GCS access before proceeding
 echo "Verifying GCS access..."
-if ! gcloud storage ls gs://${BUCKET_NAME}/ > /dev/null 2>&1; then
+if ! gcloud storage ls "gs://${BUCKET_NAME}/" > /dev/null 2>&1; then
     echo "ERROR: Cannot access bucket gs://${BUCKET_NAME}/"
-    echo "Service account ${SERVICE_ACCOUNT} may not have storage permissions"
+    echo "Ensure service account ${SERVICE_ACCOUNT} has roles/storage.objectAdmin on the bucket"
     exit 1
 fi
-echo "✓ GCS access verified"
+echo "GCS access verified"
 echo ""
 
 # Set ulimit

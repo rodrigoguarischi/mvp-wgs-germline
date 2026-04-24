@@ -28,7 +28,7 @@ echo "[MOCK] Writing dummy output files to ${OUTPUT_DIR}/"
 # Write a one-line stub file to GCS
 put() {
     echo "mock-file: ${SAMPLE_ID} $(date -u +%Y-%m-%dT%H:%M:%SZ)" \
-        | gsutil cp -q - "$1"
+        | gcloud storage cp --quiet - "$1"
 }
 
 put "${OUTPUT_DIR}/${SAMPLE_ID}.cram"

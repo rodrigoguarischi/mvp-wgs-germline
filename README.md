@@ -4,7 +4,7 @@ A production-ready Nextflow pipeline for running [Illumina DRAGEN](https://www.i
 
 DRAGEN performs alignment, variant calling (SNV/INDEL), copy number variant (CNV) detection, structural variant (SV) detection, HLA typing, repeat genotyping, pharmacogenomics (PGx), and multi-region joint detection (MRJD) — all in a single pass per sample.
 
-This pipeline was validated in a **18-sample pilot run on December 19, 2025**, achieving **$1.83/sample (GCP-only costs)** on Spot instances using `c3d-standard-90`, and is designed to scale to **200,000+ samples**.
+This pipeline was validated in an **18-sample pilot run on December 19, 2025**, achieving **$1.83/sample (GCP-only costs)** on Spot instances using `c3d-standard-90`, and is designed to scale to **200,000+ samples**.
 
 ---
 
@@ -79,11 +79,16 @@ Every sample is guaranteed to complete unless DRAGEN itself reports an error.
 │   ├── run_dragen.sh              # Core pipeline logic (runs inside container)
 │   └── run_dragen_mock.sh         # Dry-run stub — no DRAGEN credits consumed
 ├── scripts/
-│   └── generate_samplesheet.py   # Sample status tracker and samplesheet generator
+│   ├── generate_samplesheet.py   # Sample status tracker and samplesheet generator
+│   └── requirements.txt           # Python dependencies for generate_samplesheet.py
 ├── assets/
-│   └── samplesheet_template.csv  # Sample sheet template
-└── legacy/                        # Pre-Nextflow code — kept for reference only
+│   └── samplesheet_template.csv  # Samplesheet template
+├── secrets/                       # Local copy of credentials (gitignored — never committed)
+│   └── dragen_credentials.txt    # DRAGEN BYOL license file (reference copy only)
+└── legacy/                        # Pre-Nextflow scripts — kept for reference only
 ```
+
+> **`secrets/` is excluded from git.** The authoritative copy of `dragen_credentials.txt` lives in GCS at `gs://<bucket>/secrets/dragen_credentials.txt`. The local copy is a reference only.
 
 ---
 
@@ -104,7 +109,7 @@ gcloud services enable \
 ```
 
 The service account attached to Cloud Batch VMs needs these IAM roles:
-- `roles/storage.objectAdmin` — read inputs, write outputs
+- `roles/storage.objectAdmin` — read inputs, write outputs, read secrets
 - `roles/logging.logWriter` — write Cloud Logging entries
 - `roles/batch.agentReporter` — required by Cloud Batch agents
 
@@ -166,13 +171,14 @@ All data lives in a single GCS bucket. This layout must be in place before runni
 ```
 gs://YOUR_BUCKET/
 │
+├── secrets/
+│   └── dragen_credentials.txt               ← DRAGEN BYOL license file
+│
 ├── tools/
 │   └── dragen-softwaremode-4.4.7.el8.x86_64.bin   ← DRAGEN installer binary
 │
 ├── reference/
 │   └── hg38-alt_masked.graph.cnv.hla.methyl_cg.rna_v5/  ← Reference hash table
-│
-├── dragen_credentials.txt                           ← DRAGEN BYOL license file
 │
 ├── input_genomes/
 │   ├── SAMPLE001/
@@ -182,24 +188,30 @@ gs://YOUR_BUCKET/
 │   │   └── ...
 │   └── ...
 │
-└── output_files/                                    ← Written by the pipeline
-    ├── SAMPLE001/
-    │   ├── SAMPLE001.cram + .crai
-    │   ├── SAMPLE001.hard-filtered.vcf.gz
-    │   ├── SAMPLE001.gvcf.gz
-    │   ├── SAMPLE001.cnv.vcf.gz
-    │   ├── SAMPLE001.sv.vcf.gz
-    │   ├── SAMPLE001.hla.tsv
-    │   ├── *_metrics.csv
-    │   ├── file_manifest.md5
-    │   ├── Software_run_*_usage.txt
-    │   └── logs/
-    └── ...
+├── output_files/                             ← Written by the pipeline
+│   ├── SAMPLE001/
+│   │   ├── SAMPLE001.cram + .crai
+│   │   ├── SAMPLE001.hard-filtered.vcf.gz
+│   │   ├── SAMPLE001.gvcf.gz
+│   │   ├── SAMPLE001.cnv.vcf.gz
+│   │   ├── SAMPLE001.sv.vcf.gz
+│   │   ├── SAMPLE001.hla.tsv
+│   │   ├── *_metrics.csv
+│   │   ├── file_manifest.md5
+│   │   ├── Software_run_*_usage.txt
+│   │   └── logs/
+│   └── ...
+│
+├── tracking/
+│   └── sample_tracker.csv                   ← Written by generate_samplesheet.py
+│
+└── nextflow-work/                           ← Nextflow bookkeeping only (not DRAGEN outputs)
 ```
 
 **Important naming requirements:**
 - Input FASTQs must follow the pattern `*_R1*.fastq.gz` / `*_R2*.fastq.gz`. The pipeline pairs R1 and R2 files automatically.
 - Each sample's FASTQs must live in a folder named exactly after the `sample_id` in the samplesheet.
+- The DRAGEN binary must be named `dragen-softwaremode-<version>.el8.x86_64.bin` exactly — this name is derived from `params.dragen_version` at runtime.
 
 ---
 
@@ -208,19 +220,21 @@ gs://YOUR_BUCKET/
 This checklist takes a new deployment from zero to first run:
 
 - [ ] Enable required GCP APIs (see [Prerequisites §1](#1-gcp-infrastructure-one-time-setup))
-- [ ] Verify service account IAM roles
-- [ ] Request and confirm `c3d-standard-90` quota increase (**mandatory**)
-- [ ] Create and start the head node GCE VM
+- [ ] Verify service account IAM roles (storage.objectAdmin, logging.logWriter, batch.agentReporter)
+- [ ] Request and confirm `c3d-standard-90` quota increase in `us-west1` (**mandatory**)
+- [ ] Create and start the head node GCE VM (`e2-standard-2` recommended)
 - [ ] Install Java and Nextflow on the head node
-- [ ] Authenticate `gcloud` on the head node
+- [ ] Authenticate `gcloud` on the head node (`gcloud auth application-default login`)
+- [ ] Upload DRAGEN license credentials to `gs://<bucket>/secrets/dragen_credentials.txt`
 - [ ] Upload DRAGEN binary to `gs://<bucket>/tools/`
 - [ ] Upload reference genome hash table to `gs://<bucket>/reference/`
-- [ ] Upload `dragen_credentials.txt` to `gs://<bucket>/dragen_credentials.txt`
 - [ ] Upload input FASTQs to `gs://<bucket>/input_genomes/<sample_id>/`
 - [ ] Build and push Docker image to Artifact Registry
 - [ ] Clone this repository onto the head node
-- [ ] Prepare samplesheet CSV
-- [ ] Run a small test batch (2–3 samples) to validate end-to-end before the full run
+- [ ] Install Python dependencies on the head node: `pip install -r scripts/requirements.txt`
+- [ ] Prepare samplesheet CSV (manually or via `generate_samplesheet.py`)
+- [ ] Run a dry-run test (2–3 samples, `-profile test`) to validate GCP connectivity
+- [ ] Run a small real batch (2–3 samples) before the full production run
 
 ---
 
@@ -252,7 +266,7 @@ SAMPLE003
 pip install -r scripts/requirements.txt
 ```
 
-**Check current status (report only, nothing is submitted):**
+**Check current status (report only, nothing is modified):**
 ```bash
 python scripts/generate_samplesheet.py
 ```
@@ -270,7 +284,7 @@ Sample lifecycle tracked by the script:
 | `submitted` | Included in a samplesheet via `--submit` |
 | `completed` | `file_manifest.md5` found in `output_files/<sample_id>/` |
 
-Run this script weekly (or on-demand) to capture new vendor deposits. The `-resume` flag in Nextflow provides an additional safety net — if a sample from a previous run appears in the new samplesheet, Nextflow skips it from cache.
+Run this script weekly (or on-demand) to capture new vendor deposits. The `-resume` flag in Nextflow provides an additional safety net — if a sample from a previous run appears in the new samplesheet, Nextflow skips it from its local cache.
 
 ### Launch the pipeline
 
@@ -301,11 +315,14 @@ nextflow run main.nf --samplesheet my_samples.csv --dragen_version 4.4.9
 nextflow run main.nf --samplesheet my_samples.csv \
   --bucket_name my-staging-bucket \
   --work_dir gs://my-staging-bucket/nextflow-work
+
+# Use the fastest machine type (prioritise throughput over cost)
+nextflow run main.nf --samplesheet my_samples.csv --machine_type c4d-standard-96
 ```
 
 ### Dry-run — validate GCP infrastructure without using DRAGEN credits
 
-The `test` profile submits **real Cloud Batch jobs** but replaces the DRAGEN step with a 20-second sleep and dummy output files. Use this to validate GCP authentication, spot VM provisioning, and GCS read/write permissions before a production run.
+The `test` profile submits **real Cloud Batch jobs** but replaces the DRAGEN step with a 20-second sleep and dummy output files. Use this to validate GCP authentication, spot VM provisioning, and GCS read/write permissions before a production run. The dry-run uses `e2-standard-4` VMs (no DRAGEN-compatible machine required) and caps concurrency at 5 jobs.
 
 ```bash
 # Create a small test samplesheet
@@ -323,12 +340,13 @@ Dummy output files (including `file_manifest.md5`) are written to `gs://<bucket>
 
 ### Live pipeline progress (head node terminal)
 
-Nextflow prints per-sample status to stdout while running. Keep the terminal session alive (use `tmux` or `screen` on the head node).
+Nextflow prints per-sample status to stdout while running. Keep the terminal session alive using `tmux` on the head node — this prevents the run from stopping if your SSH connection drops.
 
 ```bash
-# Recommended: run inside a tmux session so it survives SSH disconnections
+# Recommended: run inside a tmux session
 tmux new -s dragen
 nextflow run main.nf --samplesheet my_samples.csv
+# Detach with Ctrl+B, D — reattach with: tmux attach -t dragen
 ```
 
 ### Cloud Batch job status
@@ -372,9 +390,9 @@ For each sample, the pipeline writes to `gs://<bucket>/output_files/<sample_id>/
 | `<sample>.sv.vcf.gz` | Structural variants |
 | `<sample>.hla.tsv` | HLA typing results |
 | `*_metrics.csv` | Mapping, coverage, and QC metrics |
-| `file_manifest.md5` | MD5 checksums for all output files |
+| `file_manifest.md5` | MD5 checksums for all output files — also used as the completion sentinel by `generate_samplesheet.py` |
 | `Software_run_*_usage.txt` | DRAGEN license usage (Tbases consumed) |
-| `logs/` | Full DRAGEN run logs |
+| `logs/` | Full DRAGEN run logs including `stdouterr.txt` |
 
 ---
 
@@ -401,7 +419,7 @@ The pilot ran 14 jobs in parallel on `c3d-standard-90` Spot instances. Two sampl
 
 ### Machine type comparison
 
-Illumina provided benchmarks for 5 supported machine types (run time from Illumina internal testing at ~35x WGS; costs calculated against VA's GCP hourly rates, GCP-only, no DRAGEN licensing):
+Illumina provided benchmarks for 5 supported machine types (run time from Illumina internal testing at ~35x WGS; costs calculated against the project's GCP hourly rates, GCP-only, no DRAGEN licensing):
 
 | VM size | Run time | Spot cost/sample | Standard cost/sample | Notes |
 |---------|----------|-----------------|---------------------|-------|
@@ -441,7 +459,7 @@ DRAGEN releases patch versions regularly (e.g. 4.4.4 → 4.4.6 → 4.4.7). To up
 
 1. Upload the new binary to GCS:
    ```bash
-   gsutil cp dragen-softwaremode-<new_version>.el8.x86_64.bin \
+   gcloud storage cp dragen-softwaremode-<new_version>.el8.x86_64.bin \
      gs://YOUR_BUCKET/tools/
    ```
 
@@ -454,24 +472,32 @@ DRAGEN releases patch versions regularly (e.g. 4.4.4 → 4.4.6 → 4.4.7). To up
 
 > **Note:** The DRAGEN analysis flags in `app/run_dragen.sh` are intentionally not parameterised. They represent the validated production configuration and should only be changed after a formal validation run against a new DRAGEN major release.
 
+> **License quota:** Track cumulative usage against `legacy/20251222_license_quota.json`. Past pilots have exhausted quotas — verify remaining capacity before large runs.
+
 ---
 
 ## Troubleshooting
 
 **Pipeline exits immediately with "Missing required parameter"**
-→ Ensure `--samplesheet` is provided and the file exists.
+→ Ensure `--samplesheet` is provided and the file path is correct.
 
 **Jobs fail on all 4 attempts**
-→ Check DRAGEN logs in `gs://<bucket>/output_files/<sample_id>/logs/`. Common causes: malformed FASTQs, missing R2 file, reference genome not found, license credentials expired.
+→ Check DRAGEN logs in `gs://<bucket>/output_files/<sample_id>/logs/`. Common causes: malformed FASTQs, missing R2 file, reference genome not found, license credentials expired or wrong path.
 
 **All Spot jobs are preempted instantly**
-→ `us-west1` may have sustained Spot scarcity for `c3d-standard-90`. Consider temporarily switching to a different region or running with `--queue_size 10` to reduce competition.
+→ `us-west1` may have sustained Spot scarcity for `c3d-standard-90`. Consider temporarily switching machine type or running with `--queue_size 10` to reduce competition.
 
 **Jobs fail with "cannot access bucket" error**
-→ The service account attached to the Cloud Batch VMs does not have `roles/storage.objectAdmin` on the bucket.
+→ The service account attached to Cloud Batch VMs does not have `roles/storage.objectAdmin` on the bucket. Check IAM in the GCP Console.
+
+**Jobs fail with "Failed to download DRAGEN license credentials"**
+→ Verify that `gs://<bucket>/secrets/dragen_credentials.txt` exists. The path is controlled by `params.license_credentials_path` in `nextflow.config`.
 
 **Nextflow reports "work directory not writable"**
 → Verify the head node service account has write access to `gs://<bucket>/nextflow-work`.
 
 **Cost significantly higher than $1.83/sample**
-→ Three likely causes: (1) a high fraction of samples fell back to Standard instances (attempt 4) — check Cloud Logging; (2) the cohort has higher average coverage than the ~30x pilot baseline — cost scales linearly with FASTQ size; (3) sustained Spot scarcity in `us-west1` — consider temporarily reducing `--queue_size` to reduce competition for capacity.
+→ Three likely causes: (1) a high fraction of samples fell back to Standard instances (attempt 4) — check Cloud Logging for retry counts; (2) the cohort has higher average coverage than the ~30x pilot baseline — cost scales linearly with FASTQ size; (3) sustained Spot scarcity in `us-west1` — consider temporarily reducing `--queue_size` to reduce competition for capacity.
+
+**`generate_samplesheet.py` fails with authentication error**
+→ Run `gcloud auth application-default login` on the head node, or ensure the head node's service account has `roles/storage.objectAdmin` on the bucket.
