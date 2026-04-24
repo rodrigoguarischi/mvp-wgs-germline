@@ -408,7 +408,6 @@ For each sample, the pipeline writes to `gs://<bucket>/output_files/<sample_id>/
 
 The pilot ran 14 jobs in parallel on `c3d-standard-90` Spot instances. Three samples with >140x coverage were included intentionally to stress-test VM configuration (these are the maximum-coverage outliers found in the 200k dataset). 
 
-Averages excluded non-outlier samples from the cost and performance metrics below to avoid biasing the results.
 
 **Sample performance (c3d-standard-90, Spot):**
 
@@ -421,8 +420,9 @@ Averages excluded non-outlier samples from the cost and performance metrics belo
 | Min GCP cost | $1.57 / sample |
 | Max GCP cost (outlier sample) | $6.64 / sample |
 
-> Costs reflect GCP compute only. Additional DRAGEN licensing costs apply separately.
-> The cost range reflects FASTQ size variation — see [Cost scales linearly with FASTQ size](#cost-scales-linearly-with-fastq-size) below.
+> * Averages excluded non-outlier samples from the cost and performance metrics below to avoid biasing the results.
+> * Costs reflect GCP compute only. Additional DRAGEN licensing costs apply separately.
+> * The cost range reflects FASTQ size variation — see [Cost scales linearly with FASTQ size](#cost-scales-linearly-with-fastq-size) below.
 
 
 ![Processing time and GCP cost per sample](assets/pilot_processing_time_and_cost.png)
