@@ -1,0 +1,17 @@
+{
+    "_instructions": "Copy this file to deployment.params.json, fill in your values, then run: nextflow run main.nf --params-file deployment.params.json --samplesheet my_samples.csv",
+
+    "project_id"  : "YOUR_GCP_PROJECT_ID",
+    "bucket_name" : "YOUR_GCS_BUCKET_NAME",
+    "region"      : "us-west1",
+
+    "work_dir"                : "gs://YOUR_GCS_BUCKET_NAME/nextflow-work",
+    "reference_path"          : "gs://YOUR_GCS_BUCKET_NAME/reference/hg38-alt_masked.graph.cnv.hla.methyl_cg.rna_v5",
+    "license_credentials_path": "gs://YOUR_GCS_BUCKET_NAME/secrets/dragen_credentials.txt",
+
+    "dragen_version": "4.4.7",
+    "machine_type"  : "c3d-standard-90",
+    "disk_size"     : "2000 GB",
+    "queue_size"    : 500,
+    "dry_run"       : false
+}

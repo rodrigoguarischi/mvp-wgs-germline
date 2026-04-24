@@ -17,6 +17,9 @@ def validateParams() {
     if (!params.bucket_name)
         errors << "Missing required parameter: --bucket_name"
 
+    if (!params.work_dir)
+        errors << "Missing required parameter: --work_dir (e.g. gs://<bucket>/nextflow-work)"
+
     if (!params.reference_path)
         errors << "Missing required parameter: --reference_path"
 

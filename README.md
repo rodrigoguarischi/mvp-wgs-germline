@@ -82,7 +82,8 @@ Every sample is guaranteed to complete unless DRAGEN itself reports an error.
 │   ├── generate_samplesheet.py   # Sample status tracker and samplesheet generator
 │   └── requirements.txt           # Python dependencies for generate_samplesheet.py
 ├── assets/
-│   └── samplesheet_template.csv  # Samplesheet template
+│   ├── samplesheet_template.csv             # Samplesheet template
+│   └── deployment.params.json.template      # Params file template — copy and fill in before first run
 ├── secrets/                       # Local copy of credentials (gitignored — never committed)
 │   └── dragen_credentials.txt    # DRAGEN BYOL license file (reference copy only)
 └── legacy/                        # Pre-Nextflow scripts — kept for reference only
@@ -232,7 +233,8 @@ This checklist takes a new deployment from zero to first run:
 - [ ] Build and push Docker image to Artifact Registry
 - [ ] Clone this repository onto the head node
 - [ ] Install Python dependencies on the head node: `pip install -r scripts/requirements.txt`
-- [ ] Prepare samplesheet CSV (manually or via `generate_samplesheet.py`)
+- [ ] Fill in `deployment.params.json` from `assets/deployment.params.json.template` (project ID, bucket, GCS paths)
+- [ ] Prepare samplesheet CSV (manually or via `generate_samplesheet.py --bucket YOUR_BUCKET`)
 - [ ] Run a dry-run test (2–3 samples, `-profile test`) to validate GCP connectivity
 - [ ] Run a small real batch (2–3 samples) before the full production run
 
@@ -268,12 +270,12 @@ pip install -r scripts/requirements.txt
 
 **Check current status (report only, nothing is modified):**
 ```bash
-python scripts/generate_samplesheet.py
+python scripts/generate_samplesheet.py --bucket YOUR_BUCKET
 ```
 
 **Generate a samplesheet and mark samples as submitted:**
 ```bash
-python scripts/generate_samplesheet.py --submit --out my_samples.csv
+python scripts/generate_samplesheet.py --bucket YOUR_BUCKET --submit --out my_samples.csv
 ```
 
 Sample lifecycle tracked by the script:
@@ -286,10 +288,19 @@ Sample lifecycle tracked by the script:
 
 Run this script weekly (or on-demand) to capture new vendor deposits. The `-resume` flag in Nextflow provides an additional safety net — if a sample from a previous run appears in the new samplesheet, Nextflow skips it from its local cache.
 
+### Configure deployment parameters
+
+All GCP-specific parameters (`project_id`, `bucket_name`, `work_dir`, `reference_path`, `license_credentials_path`) have no hardcoded defaults and must be supplied at runtime. The recommended approach is a params file — copy the template and fill in your values:
+
+```bash
+cp assets/deployment.params.json.template deployment.params.json
+# Edit deployment.params.json with your project ID and bucket name
+```
+
 ### Launch the pipeline
 
 ```bash
-nextflow run main.nf --samplesheet my_samples.csv
+nextflow run main.nf --params-file deployment.params.json --samplesheet my_samples.csv
 ```
 
 ### Resume after interruption
@@ -297,27 +308,22 @@ nextflow run main.nf --samplesheet my_samples.csv
 If the head node VM stopped or the run was interrupted, resume from where it left off — already-completed samples are skipped:
 
 ```bash
-nextflow run main.nf --samplesheet my_samples.csv -resume
+nextflow run main.nf --params-file deployment.params.json --samplesheet my_samples.csv -resume
 ```
 
 ### Override defaults at runtime
 
-All parameters defined in `nextflow.config` can be overridden on the command line:
+Individual parameters can be overridden on the command line alongside `--params-file`:
 
 ```bash
 # Limit concurrency (e.g. while quota is being increased)
-nextflow run main.nf --samplesheet my_samples.csv --queue_size 50
+nextflow run main.nf --params-file deployment.params.json --samplesheet my_samples.csv --queue_size 50
 
 # Specify a different DRAGEN version
-nextflow run main.nf --samplesheet my_samples.csv --dragen_version 4.4.9
-
-# Run against a different bucket (e.g. staging environment)
-nextflow run main.nf --samplesheet my_samples.csv \
-  --bucket_name my-staging-bucket \
-  --work_dir gs://my-staging-bucket/nextflow-work
+nextflow run main.nf --params-file deployment.params.json --samplesheet my_samples.csv --dragen_version 4.4.9
 
 # Use the fastest machine type (prioritise throughput over cost)
-nextflow run main.nf --samplesheet my_samples.csv --machine_type c4d-standard-96
+nextflow run main.nf --params-file deployment.params.json --samplesheet my_samples.csv --machine_type c4d-standard-96
 ```
 
 ### Dry-run — validate GCP infrastructure without using DRAGEN credits
@@ -329,7 +335,7 @@ The `test` profile submits **real Cloud Batch jobs** but replaces the DRAGEN ste
 printf 'sample_id\nTEST001\nTEST002\n' > test_samples.csv
 
 # Submit to GCP with mock DRAGEN (e2-standard-4, max 5 concurrent jobs)
-nextflow run main.nf --samplesheet test_samples.csv -profile test
+nextflow run main.nf --params-file deployment.params.json --samplesheet test_samples.csv -profile test
 ```
 
 Dummy output files (including `file_manifest.md5`) are written to `gs://<bucket>/output_files/<sample_id>/` so the run appears completed to `generate_samplesheet.py` as well.
@@ -345,7 +351,7 @@ Nextflow prints per-sample status to stdout while running. Keep the terminal ses
 ```bash
 # Recommended: run inside a tmux session
 tmux new -s dragen
-nextflow run main.nf --samplesheet my_samples.csv
+nextflow run main.nf --params-file deployment.params.json --samplesheet my_samples.csv
 # Detach with Ctrl+B, D — reattach with: tmux attach -t dragen
 ```
 
@@ -400,7 +406,7 @@ For each sample, the pipeline writes to `gs://<bucket>/output_files/<sample_id>/
 
 ### Pilot results (December 19, 2025 — 18 samples, us-west1)
 
-The pilot ran 14 jobs in parallel on `c3d-standard-90` Spot instances. Two samples with >140x coverage were included intentionally to stress-test VM configuration (these are the maximum-coverage outliers found in the 200k dataset). They were excluded from the cost and performance metrics below to avoid biasing the results.
+The pilot ran 14 jobs in parallel on `c3d-standard-90` Spot instances. Three samples with >140x coverage were included intentionally to stress-test VM configuration (these are the maximum-coverage outliers found in the 200k dataset). They were excluded from the cost and performance metrics below to avoid biasing the results.
 
 **Non-outlier sample performance (c3d-standard-90, Spot):**
 
@@ -416,6 +422,10 @@ The pilot ran 14 jobs in parallel on `c3d-standard-90` Spot instances. Two sampl
 > Costs reflect GCP compute only. Additional DRAGEN licensing costs apply separately.
 > The cost range reflects FASTQ size variation — see [Cost scales linearly with FASTQ size](#cost-scales-linearly-with-fastq-size) below.
 > Illumina's reference benchmarks are based on 35x WGS. MVP genomes average ~30x, which is why observed costs are slightly lower than the Illumina forecast.
+
+![Processing time and GCP cost per sample](assets/pilot_processing_time_and_cost.png)
+
+![GCP cost scales linearly with FASTQ size (R² = 0.9953)](assets/pilot_cost_by_fastq_size.png)
 
 ### Machine type comparison
 

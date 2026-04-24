@@ -65,37 +65,37 @@ Scans GCS for new samples and maintains a persistent status tracker in GCS.
 pip install -r scripts/requirements.txt   # once, on the head node
 
 # Check status (report only)
-python scripts/generate_samplesheet.py
+python scripts/generate_samplesheet.py --bucket YOUR_BUCKET
 
 # Generate samplesheet of pending samples and mark them as submitted
-python scripts/generate_samplesheet.py --submit --out my_samples.csv
+python scripts/generate_samplesheet.py --bucket YOUR_BUCKET --submit --out my_samples.csv
 ```
 Tracker stored at `gs://<bucket>/tracking/sample_tracker.csv`. States: `pending` → `submitted` → `completed` (detected via `file_manifest.md5`).
 
 ### Run the pipeline
 ```bash
-nextflow run main.nf --samplesheet my_samples.csv
+nextflow run main.nf --params-file deployment.params.json --samplesheet my_samples.csv
 ```
 
 ### Resume a failed or interrupted run
 ```bash
-nextflow run main.nf --samplesheet my_samples.csv -resume
+nextflow run main.nf --params-file deployment.params.json --samplesheet my_samples.csv -resume
 ```
 Nextflow skips any sample that already completed successfully, using its local cache (`./work/` bookkeeping in GCS).
 
 ### Dry-run — test GCP infrastructure without DRAGEN credits
 Submits real Cloud Batch jobs (`e2-standard-4`) with a mock DRAGEN step (20 s sleep + dummy output files).
 ```bash
-nextflow run main.nf --samplesheet test_samples.csv -profile test
+nextflow run main.nf --params-file deployment.params.json --samplesheet test_samples.csv -profile test
 ```
 
 ### Override defaults at runtime
 ```bash
 # Change DRAGEN version (e.g. when upgrading)
-nextflow run main.nf --samplesheet my_samples.csv --dragen_version 4.4.9
+nextflow run main.nf --params-file deployment.params.json --samplesheet my_samples.csv --dragen_version 4.4.9
 
 # Reduce concurrency during a quota-constrained run
-nextflow run main.nf --samplesheet my_samples.csv --queue_size 100
+nextflow run main.nf --params-file deployment.params.json --samplesheet my_samples.csv --queue_size 100
 
 # Switch machine type — 5 options validated by Illumina (GCP-only costs, ~35x WGS):
 # n2d-standard-96  2h51  $3.19/sample Spot   $10.03/sample Standard
@@ -103,7 +103,7 @@ nextflow run main.nf --samplesheet my_samples.csv --queue_size 100
 # c3d-standard-90  2h13  $2.39/sample Spot   $9.65/sample  Standard  ← default
 # c4d-standard-64  2h29  $3.97/sample Spot   $8.55/sample  Standard
 # c4d-standard-96  1h44  $3.78/sample Spot   $8.56/sample  Standard  ← fastest
-nextflow run main.nf --samplesheet my_samples.csv --machine_type c4d-standard-96
+nextflow run main.nf --params-file deployment.params.json --samplesheet my_samples.csv --machine_type c4d-standard-96
 ```
 
 ### Monitor a running pipeline
@@ -171,6 +171,7 @@ modules/dragen/main.nf  ── exports env vars ── calls /app/run_dragen.sh
 | `scripts/generate_samplesheet.py` | Scans GCS for new samples, maintains `tracking/sample_tracker.csv`, generates samplesheets. |
 | `scripts/requirements.txt` | Python dependency (`google-cloud-storage`) for `generate_samplesheet.py`. Install once on the head node. |
 | `assets/samplesheet_template.csv` | Samplesheet template. |
+| `assets/deployment.params.json.template` | Params file template. Copy to `deployment.params.json`, fill in project ID and bucket, then pass to Nextflow with `--params-file`. |
 | `secrets/dragen_credentials.txt` | Local reference copy of DRAGEN BYOL credentials (gitignored). The authoritative copy is in GCS at `gs://<bucket>/secrets/dragen_credentials.txt`. |
 
 ---

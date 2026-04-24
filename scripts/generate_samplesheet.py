@@ -38,7 +38,6 @@ from google.cloud import storage
 
 # ─── Constants ────────────────────────────────────────────────────────────────
 
-DEFAULT_BUCKET     = "YOUR_BUCKET"
 TRACKER_BLOB       = "tracking/sample_tracker.csv"
 COMPLETION_SENTINEL = "file_manifest.md5"
 COLS               = ["sample_id", "status", "date_detected", "date_submitted", "date_completed"]
@@ -100,8 +99,8 @@ def main() -> None:
     )
     parser.add_argument(
         "--bucket",
-        default=DEFAULT_BUCKET,
-        help="GCS bucket name (default: %(default)s)",
+        required=True,
+        help="GCS bucket name containing input_genomes/, output_files/, and tracking/",
     )
     parser.add_argument(
         "--submit",
