@@ -433,11 +433,11 @@ Illumina provided benchmarks for 5 supported machine types. Illumina's reference
 
 | VM size | Run time | Spot cost/sample | Standard cost/sample | Notes |
 |---------|----------|-----------------|---------------------|-------|
-| `n2d-standard-96` | 2 h 51 min | $3.19 | $10.03 | |
-| `c3d-standard-60` | 3 h 15 min | $2.63 | $9.75 | |
-| **`c3d-standard-90`** | **2 h 13 min** | **$2.39** | **$9.65** | **Default — cheapest Spot option** |
-| `c4d-standard-64` | 2 h 29 min | $3.97 | $8.55 | |
-| `c4d-standard-96` | 1 h 44 min | $3.78 | $8.56 | Fastest — choose if throughput matters more than cost |
+| `n2d&#8209;standard&#8209;96` | 2 h 51 min | $3.19 | $10.03 | |
+| `c3d&#8209;standard&#8209;60` | 3 h 15 min | $2.63 | $9.75 | |
+| **`c3d&#8209;standard&#8209;90`** | **2 h 13 min** | **$2.39** | **$9.65** | **Default — cheapest Spot option** |
+| `c4d&#8209;standard&#8209;64` | 2 h 29 min | $3.97 | $8.55 | |
+| `c4d&#8209;standard&#8209;96` | 1 h 44 min | $3.78 | $8.56 | Fastest — choose if throughput matters more than cost |
 
 > Costs calculated against the project's GCP hourly rates, GCP-only, no DRAGEN licensing:
 
