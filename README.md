@@ -20,7 +20,8 @@ This pipeline was validated in an **18-sample pilot run on December 19, 2025**, 
 8. [Outputs](#outputs)
 9. [Spot Instance Strategy & Cost](#spot-instance-strategy--cost)
 10. [Upgrading DRAGEN](#upgrading-dragen)
-11. [Troubleshooting](#troubleshooting)
+11. [Untested Modules](#untested-modules)
+12. [Troubleshooting](#troubleshooting)
 
 ---
 
@@ -487,6 +488,27 @@ DRAGEN releases patch versions regularly (e.g. 4.4.4 → 4.4.6 → 4.4.7). To up
 > **Note:** The DRAGEN analysis flags in `app/run_dragen.sh` are intentionally not parameterised. They represent the validated production configuration and should only be changed after a formal validation run against a new DRAGEN major release.
 
 > **License quota:** Track cumulative usage against `legacy/20251222_license_quota.json`. Past pilots have exhausted quotas — verify remaining capacity before large runs.
+
+---
+
+## Untested Modules
+
+The following DRAGEN module was **not tested during the December 2025 pilot** due to insufficient DRAGEN license credits. It is considered important for production readiness and should be validated on a small batch before full-scale deployment.
+
+### ⚠️ Contamination Detection
+
+> **This module is highly recommended before production deployment.** Cross-sample contamination is a common sequencing artifact and, if undetected, can silently compromise downstream variant calls and clinical interpretations.
+
+DRAGEN v4.4+ includes a built-in contamination estimator that flags samples where contamination from a foreign DNA source is detected. Reference: [DRAGEN v4.5 — Contamination Detection](https://help.dragen.illumina.com/product-guides/dragen-v4.5/qc-metrics-reporting/contamination-detection).
+
+**What needs to change:** One or more flags must be added to the `dragen` command in [app/run_dragen.sh](app/run_dragen.sh) (around line 127). The exact flags and any required reference files (e.g. a population allele-frequency VCF) must be confirmed against the Illumina documentation for the DRAGEN version in use. The contamination estimate is reported in the per-sample metrics output.
+
+**Validation steps before production:**
+1. Review the Illumina documentation for the deployed DRAGEN version to identify the correct flags and any required auxiliary files.
+2. Upload any required reference files (e.g. population VCF) to GCS under `gs://<bucket>/reference/` or a dedicated path, and add the GCS path as a new parameter in `nextflow.config` / `deployment.params.json`.
+3. Add the contamination flags to `app/run_dragen.sh`, rebuild and push the Docker image.
+4. Run a dry-run (`-profile test`) to confirm the new flags don't break the job submission.
+5. Run a real batch of 3–5 samples and inspect the contamination metrics in the output CSV files before proceeding to full scale.
 
 ---
 
